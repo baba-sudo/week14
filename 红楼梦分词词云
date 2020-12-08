@@ -1,0 +1,115 @@
+import jieba
+import time
+import numpy as np
+import codecs
+import pandas as pd 
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+
+RedDream = pd.read_csv(r"C:\Users\Administrator\Desktop\red_UTF82.txt",header=None,names=["Reddream"],encoding='utf-8')
+RedDream.head()
+
+RedDream.index.max() + 1
+filter1 = RedDream.Reddream.str.match("第+.+回")
+chapter = RedDream.loc[filter1]
+chapter.reset_index(drop=True,inplace=True)
+chapter_df= pd.DataFrame(list(chapter.Reddream.str.split(" ")),columns=['Chapter','left','right'])
+RedDream_list=list(chapter.Reddream.str.split(" "))
+
+chapter_df["startid"] = filter1[filter1 == True].index
+
+chapter_df["endid"] = chapter_df["startid"][1:len(chapter_df["startid"])].reset_index(drop=True)-1
+chapter_df["endid"][[len(chapter_df["endid"])-1]] = RedDream.index[-1]
+chapter_df["column_sum"] = chapter_df["endid"]-chapter_df["startid"]
+chapter_df["Artical"] = "Artical"
+
+for ii in chapter_df.index:
+    chapid = np.arange(chapter_df["startid"][ii]+1,int(chapter_df["endid"][ii]))
+    chapter_df["Artical"][ii] = "".join(list(RedDream.Reddream[chapid])).replace("u3000","")
+   
+chapter_df["lenzi"] = chapter_df["Artical"].apply(len)
+chapter_df
+stopword = pd.read_csv(r"C:\Users\Administrator\Desktop\my_stop_words.txt",header=None,names=["Stopword"])
+stopword[::200]
+
+row,col = chapter_df.shape
+chapter_df["cutword"] = "cutword"
+for ii in np.arange(row):
+    cutwords = list(jieba.cut(chapter_df.Artical[ii],cut_all=True))
+    cutwords = pd.Series(cutwords)[pd.Series(cutwords).apply(len)>1]
+    cutwords = cutwords[~cutwords.isin(stopword)]
+    chapter_df.cutword[ii] = cutwords.values
+    
+from matplotlib.font_manager import FontProperties
+from wordcloud import WordCloud,ImageColorGenerator
+%matplotlib inline
+
+def plotwordcould(wordlist,title,figsize=(6,6)):
+    words = wordlist
+    name = title
+    word_df = pd.DataFrame({"Word":words})
+    word_stat = word_df.groupby(by= ["Word"])["Word"].agg({"number":np.size})
+    word_stat = word_stat.reset_index().sort_values(by="number",ascending=False)
+    word_stat["wordlen"] = word_stat.Word.apply(len)
+    word_stat
+    worddict = {}
+    for key,value in zip(word_stat.Word,word_stat.number):
+        worddict[key] = value
+
+    red_wc = WordCloud(font_path = 'simhei.ttf',
+                      margin=5,width=1800,height=1800,
+                      background_color="black",
+                      max_words=800,
+                      max_font_size=400,
+                      random_state=42,
+                      ).generate_from_frequencies(frequencies=worddict)
+    plt.figure(figsize=figsize)
+    plt.imshow(red_wc)
+    plt.axis("off")
+    plt.title(name,fontproperties="SimHei",size = 12)
+    plt.show()
+    
+print("plot all red dream wordcloud")
+t0 = time.time()
+for ii in np.arange(2):
+    ii=ii*10
+    name=chapter_df.Chapter[ii] +":"+ chapter_df.left[ii]+","+chapter_df.right[ii]
+    words = chapter_df.cutword[ii]
+    plotwordcould(words,name,figsize=(6,6))
+print("Plot all wordcloud use %.2fs"%(time.time()-t0))
+
+chapter_df.to_json(r"D:Red_Dream_data.json")
+chapter_df=pd.read_json(r"D:Red_Dream_data.json")
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans
+
+articals = []
+for cutword in chapter_df.cutword:
+    articals.append(" ".join(cutword))
+#vectorizer = CountVectorizer()
+transformer = TfidfVectorizer()
+tfidf = transformer.fit_transform(articals)
+print(tfidf)
+tfidf.toarray()
+
+km =KMeans(n_clusters=3, init='k-means++',max_iter=10, n_init=1)
+km.fit(tfidf)
+
+km.predict(tfidf)
+
+chapter_df = pd.read_csv(r"C:\Users\Administrator\Desktop\red_social_net_weight.csv")   
+
+chapter_df.head()
+
+import networkx as nx
+G = nx.Graph()
+for ii in chapter_df.index:
+    G.add_edge(chapter_df.First[ii],chapter_df.Second[ii],weight=chapter_df.chapweight[ii])
+  
+from matplotlib.pylab import plt
+%matplotlib inline
+nx.draw_networkx(G)
+plt.axis('off')
+plt.show()
+
