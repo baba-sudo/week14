@@ -1,0 +1,45 @@
+import json
+import xlwt
+from urllib.request import urlopen,Request
+from bs4 import BeautifulSoup
+for a in range(1,5):
+    workbook = xlwt.Workbook(encoding='UTF-8')
+    worksheet = workbook.add_sheet('My Worksheet')
+    worksheet.write(0, 0, label="相关链接")
+    worksheet.write(0, 1, label="职位名称")
+    worksheet.write(0, 2, label="公司名称")
+    worksheet.write(0, 3, label="工资")
+    worksheet.write(0, 4, label="工作地址")
+    worksheet.write(0, 5, label="工作福利")
+    worksheet.write(0, 6, label="应聘要求")
+    worksheet.write(0, 7, label="公司规模")
+    worksheet.write(0, 8, label="工作职责")
+    url = "https://search.51job.com/list/080200,000000,0000,00,9,99,%25E5%25A4%25A7%25E6%2595%25B0%25E6%258D%25AE,2," + str(a) + ".html?lang=c&postchannel=0000&workyear=99&cotype=99&degreefrom=99&jobterm=99&companysize=99&ord_field=0&dibiaoid=0&line=&welfare="
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3947.100 Safari/537.36'}
+    ret = Request(url, headers=headers)
+    html = urlopen(ret)
+    bs = BeautifulSoup(html, "html.parser")
+    alls = bs.find_all('script', {"type": "text/javascript"})
+    for x in alls:
+        t = x.get_text()
+        if len(t) > 0:
+            tt = t.replace('window.__SEARCH_RESULT__ = ', '')
+            result = json.loads(tt)
+            results = result["engine_search_result"]
+            for i in range(0, len(results)):
+                website = Request(results[i]['job_href'], headers=headers)
+                web = urlopen(website)
+                bs = BeautifulSoup(web, "html.parser")
+                contents = bs.find_all('div', {"class": "bmsg job_msg inbox"})
+                for content in contents:
+                    content = content.get_text()
+                    worksheet.write(i + 1, 0, label=results[i]['job_href'])
+                    worksheet.write(i + 1, 1, label=results[i]['job_name'])
+                    worksheet.write(i + 1, 2, label=results[i]['company_name'])
+                    worksheet.write(i + 1, 3, label=results[i]['providesalary_text'])
+                    worksheet.write(i + 1, 4, label=results[i]['workarea_text'])
+                    worksheet.write(i + 1, 5, label=results[i]['jobwelf_list'])
+                    worksheet.write(i + 1, 6, label=results[i]['attribute_text'])
+                    worksheet.write(i + 1, 7, label=results[i]['companysize_text'])
+                    worksheet.write(i + 1, 8, label=content)
+                workbook.save('3.xls')
